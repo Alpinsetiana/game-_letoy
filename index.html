@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letoy Stickman - Vandalas Edition</title>
+    <style>
+        body { margin: 0; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', Tahoma, sans-serif; color: white; overflow: hidden; }
+        #game-container { position: relative; width: 1024px; height: 576px; }
+        canvas { background: linear-gradient(to bottom, #102e3b, #051921); border: 4px solid #444; box-shadow: 0 10px 50px rgba(0,0,0,0.9); display: block; }
+        
+        #ui-layer { position: absolute; top: 20px; width: 100%; display: none; justify-content: space-between; padding: 0 40px; box-sizing: border-box; z-index: 10; }
+        .bars { display: flex; flex-direction: column; gap: 8px; width: 350px; }
+        .health-bar-container { width: 100%; height: 35px; background-color: rgba(0,0,0,0.8); border: 3px solid #ddd; position: relative; border-radius: 5px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .health-fill { height: 100%; position: absolute; top: 0; transition: width 0.15s linear; }
+        .layer1 { background-color: #ff1a1a; z-index: 1; } .layer2 { background-color: #ffaa00; z-index: 2; } .layer3 { background-color: #00e5ff; z-index: 3; } 
+        #p1-bars .health-fill { right: 0; } #p2-bars .health-fill { left: 0; }
+        
+        .cd-wrapper { display: flex; gap: 5px; width: 100%; justify-content: flex-end; } #p2-bars .cd-wrapper { justify-content: flex-start; }
+        .cd-bar-container { flex-grow: 1; height: 8px; background-color: rgba(0,0,0,0.6); border: 1px solid #aaa; position: relative; border-radius: 3px; overflow: hidden;}
+        .cd-fill-shoot { height: 100%; position: absolute; top: 0; background-color: #00e5ff; transition: width 0.1s;}
+        .cd-fill-heal { height: 100%; position: absolute; top: 0; background-color: #00ff44; transition: width 0.1s;}
+        .cd-fill-ult { height: 100%; position: absolute; top: 0; background-color: #ffcc00; transition: width 0.1s; box-shadow: 0 0 10px #ffcc00;} 
+        .cd-fill-dash { height: 100%; position: absolute; top: 0; background-color: #ffffff; transition: width 0.1s; } 
+        
+        #player1-shoot-cd, #player1-heal-cd, #player1-ult-cd, #player1-dash-cd { right: 0; width: 0%; }
+        #player2-shoot-cd, #player2-heal-cd, #player2-ult-cd, #player2-dash-cd { left: 0; width: 0%; }
+        #p1-bars { align-items: flex-end; } #p2-bars { align-items: flex-start; }
+        
+        #center-ui { display: flex; flex-direction: column; align-items: center; gap: 5px;}
+        #level-info { font-size: 18px; font-weight: bold; background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 20px; border: 1px solid #ffcc00; color: #ffcc00; text-transform: uppercase; letter-spacing: 1px;}
+        #timer { font-size: 36px; font-weight: bold; background: rgba(0,0,0,0.6); padding: 5px 25px; border-radius: 10px; border: 2px solid white; height: max-content; }
+        
+        #result-screen { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; justify-content: center; align-items: center; flex-direction: column; font-size: 60px; font-weight: bold; background: rgba(0,0,0,0.8); z-index: 20; text-transform: uppercase; letter-spacing: 3px; text-shadow: 0px 0px 20px red; text-align: center; }
+        #controls-info { position: absolute; bottom: -100px; width: 100%; text-align: center; display: none; color: #ddd; font-size: 14px; background: rgba(0,0,0,0.6); padding: 12px; border-radius: 10px; line-height: 1.6; z-index: 100; }
+
+        .menu-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 50; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .menu-screen h1 { font-size: 60px; margin-bottom: 20px; text-shadow: 0 0 20px #00e5ff; letter-spacing: 5px;}
+        .menu-screen h2 { font-size: 30px; margin-bottom: 40px; color: #ffcc00; }
+        .menu-btn { background: transparent; color: white; border: 3px solid white; padding: 15px 40px; font-size: 20px; font-weight: bold; margin: 10px; cursor: pointer; text-transform: uppercase; transition: all 0.2s; width: 300px; border-radius: 8px; }
+        .menu-btn:hover { background: white; color: black; box-shadow: 0 0 20px white; transform: scale(1.05); }
+        .menu-btn.exit:hover { background: #ff3333; border-color: #ff3333; color: white; box-shadow: 0 0 20px #ff3333; }
+
+        #level-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 800px; margin-bottom: 30px; }
+        .level-btn { background: rgba(0,0,0,0.6); color: white; border: 2px solid #00e5ff; padding: 15px 20px; font-size: 18px; font-weight: bold; cursor: pointer; width: 220px; border-radius: 8px; transition: all 0.2s; }
+        .level-btn:hover:not(.locked) { background: #00e5ff; color: black; transform: translateY(-5px); box-shadow: 0 5px 15px #00e5ff;}
+        .level-btn.locked { opacity: 0.5; border-color: #555; cursor: not-allowed; background: #222; }
+
+        .custom-container { display: flex; gap: 50px; margin-bottom: 30px; width: 90%; justify-content: space-around;}
+        .custom-panel { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; width: 45%; text-align: center; border: 2px solid #555; position: relative;}
+        .custom-panel h3 { margin-top: 0; font-size: 20px; border-bottom: 2px solid #fff; padding-bottom: 5px;}
+        .p1-title { color: #ff6666; border-bottom-color: #ff6666 !important;} .p2-title { color: #ccffff; border-bottom-color: #ccffff !important;}
+        
+        .select-group { margin: 8px 0; text-align: left; }
+        .select-group label { display: block; font-size: 13px; margin-bottom: 3px; font-weight: bold; color: #ffcc00;}
+        .select-group select { width: 100%; padding: 6px; font-size: 14px; background: #222; color: white; border: 2px solid #777; border-radius: 5px; cursor: pointer; }
+        #p2-overlay { position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 5; display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:24px; border-radius:10px; color:#ffcc00;}
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="main-menu" class="menu-screen">
+        <h1>LETOY FIGHTER</h1>
+        <h2>HERO & STORY MODE</h2>
+        <button class="menu-btn" onclick="openModeSelect()">Mulai Permainan</button>
+        <button class="menu-btn exit" onclick="exitGame()">Keluar</button>
+    </div>
+
+    <div id="mode-menu" class="menu-screen" style="display: none;">
+        <h1>PILIH MODE</h1>
+        <button class="menu-btn" onclick="openLevelSelect()" style="border-color:#ffcc00; color:#ffcc00;">Story Mode (1 Player)</button>
+        <button class="menu-btn" onclick="openCustomVersus()">Versus (2 Player)</button>
+        <button class="menu-btn exit" onclick="backToMain()">Kembali</button>
+    </div>
+
+    <div id="level-menu" class="menu-screen" style="display: none;">
+        <h1>PILIH LEVEL</h1>
+        <div id="level-container"></div>
+        <button class="menu-btn exit" onclick="backToModeSelect()">Kembali</button>
+    </div>
+
+    <div id="custom-menu" class="menu-screen" style="display: none;">
+        <h2>PERSIAPAN KARAKTER</h2>
+        <div class="custom-container">
+            <div class="custom-panel">
+                <h3 class="p1-title">Player 1</h3>
+                <div class="select-group">
+                    <label>Karakter (Elemen & Ultimate):</label>
+                    <select id="p1-hero">
+                        <option value="api">Aa Goyz (Elemen Api 🔥)</option>
+                        <option value="petir">Ikky (Elemen Petir ⚡)</option>
+                        <option value="es">OmKii (Elemen Es ❄️)</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Senjata (Stats Gerak & Serangan):</label>
+                    <select id="p1-weapon">
+                        <option value="pedang">Pedang (Balanced)</option>
+                        <option value="kapak">Kapak (Heavy/Lambat)</option>
+                        <option value="tombak">Tombak (Agile/Jauh)</option>
+                        <option value="pisau">Pisau Ganda (Spam/Sangat Cepat)</option>
+                        <option value="sabit">Sabit Vandalas (Lifesteal)</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Topi:</label>
+                    <select id="p1-hat">
+                        <option value="none">Kosong</option>
+                        <option value="mahkota">Mahkota Emas</option>
+                        <option value="koboi">Topi Koboi</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Jubah:</label>
+                    <select id="p1-cape">
+                        <option value="none">Kosong</option>
+                        <option value="red">Jubah Merah</option>
+                        <option value="black">Jubah Hitam</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="custom-panel" id="p2-custom-panel">
+                <div id="p2-overlay" style="display:none;">AI AKAN MENGATUR INI</div>
+                <h3 class="p2-title">Player 2</h3>
+                <div class="select-group">
+                    <label>Karakter (Elemen & Ultimate):</label>
+                    <select id="p2-hero">
+                        <option value="api">Aa Goyz (Elemen Api 🔥)</option>
+                        <option value="petir">Ikky (Elemen Petir ⚡)</option>
+                        <option value="es">OmKii (Elemen Es ❄️)</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Senjata (Stats Gerak & Serangan):</label>
+                    <select id="p2-weapon">
+                        <option value="pedang">Pedang (Balanced)</option>
+                        <option value="kapak">Kapak (Heavy/Lambat)</option>
+                        <option value="tombak">Tombak (Agile/Jauh)</option>
+                        <option value="pisau">Pisau Ganda (Spam/Sangat Cepat)</option>
+                        <option value="sabit">Sabit Vandalas (Lifesteal)</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Topi:</label>
+                    <select id="p2-hat">
+                        <option value="none">Kosong</option>
+                        <option value="mahkota">Mahkota Emas</option>
+                        <option value="koboi">Topi Koboi</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label>Jubah:</label>
+                    <select id="p2-cape">
+                        <option value="none">Kosong</option>
+                        <option value="red">Jubah Merah</option>
+                        <option value="black">Jubah Hitam</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <button class="menu-btn" onclick="startGame()" style="width: 300px; background:#fff; color:#000;">FIGHT!</button>
+        <button class="menu-btn exit" onclick="backFromCustom()" style="width: 300px;">Kembali</button>
+    </div>
+
+    <div id="goodbye-screen" class="menu-screen" style="display: none;"><h1>Game Ditutup</h1></div>
+
+    <div id="ui-layer">
+        <div class="bars" id="p1-bars">
+            <div class="health-bar-container"><div class="health-fill layer1" id="p1-l1"></div><div class="health-fill layer2" id="p1-l2"></div><div class="health-fill layer3" id="p1-l3"></div></div>
+            <div class="cd-wrapper">
+                <div class="cd-bar-container"><div class="cd-fill-shoot" id="player1-shoot-cd"></div></div>
+                <div class="cd-bar-container"><div class="cd-fill-heal" id="player1-heal-cd"></div></div>
+                <div class="cd-bar-container" style="border-color:#ffcc00;"><div class="cd-fill-ult" id="player1-ult-cd"></div></div>
+                <div class="cd-bar-container" style="border-color:#fff; width:30px;"><div class="cd-fill-dash" id="player1-dash-cd"></div></div>
+            </div>
+        </div>
+        
+        <div id="center-ui">
+            <div id="level-info">VS PLAYER 2</div>
+            <div id="timer">99</div>
+        </div>
+
+        <div class="bars" id="p2-bars">
+            <div class="health-bar-container"><div class="health-fill layer1" id="p2-l1"></div><div class="health-fill layer2" id="p2-l2"></div><div class="health-fill layer3" id="p2-l3"></div></div>
+            <div class="cd-wrapper">
+                <div class="cd-bar-container" style="border-color:#fff; width:30px;"><div class="cd-fill-dash" id="player2-dash-cd"></div></div>
+                <div class="cd-bar-container"><div class="cd-fill-shoot" id="player2-shoot-cd"></div></div>
+                <div class="cd-bar-container"><div class="cd-fill-heal" id="player2-heal-cd"></div></div>
+                <div class="cd-bar-container" style="border-color:#ffcc00;"><div class="cd-fill-ult" id="player2-ult-cd"></div></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="result-screen">
+        <span id="winner-text">KO!</span>
+        <div style="display:flex; gap:20px; margin-top:20px;">
+            <button id="next-btn" onclick="nextLevel()" style="display:none; padding: 15px 30px; font-size: 24px; cursor: pointer; border:none; border-radius:5px; font-weight:bold; background-color: #ffcc00; color: #000; box-shadow: 0 0 15px #ffcc00;">Lanjut Level!</button>
+            <button onclick="location.reload()" style="padding: 15px 30px; font-size: 24px; cursor: pointer; border:none; border-radius:5px; font-weight:bold; background-color: #fff; color: #000;">Menu Utama</button>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="1024" height="576"></canvas>
+
+    <div id="controls-info">
+        🔴 <b>P1:</b> WASD(Gerak) | Spasi(Serang) | E(Tembak) | F(Heal) | R(<b>ULTI</b>) | Q(Emot) | C(<b>DASH</b>)<br>
+        <span id="p2-controls">⚪ <b>P2:</b> Panah(Gerak) | Enter(Serang) | Shift(Tembak) | 1(Heal) | 2(<b>ULTI</b>) | 0(Emot) | 3(<b>DASH</b>)</span>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const c = canvas.getContext('2d');
+    const gravity = 0.8; 
+    const platform = { x: 312, y: 350, w: 400, h: 226 };
+
+    let projectiles = []; let bloodParticles = []; let globalShake = 0; let gameActive = false; let gameMode = 'versus'; 
+    let maxUnlockedLevel = parseInt(localStorage.getItem('letoyMaxLevel')) || 1; let currentLevel = 1;
+
+    const storyLevels = [
+        { name: "Lvl 1: Prajurit Dadang", weapon: "pisau", hero: "api", hat: "none", cape: "none", aggro: 0.2, hp: 150, speed: 3.5 },
+        { name: "Lvl 2: Penjaga Diding", weapon: "kapak", hero: "es", hat: "none", cape: "none", aggro: 0.4, hp: 200, speed: 4.5 },
+        { name: "Lvl 3: Kesatria Dudung", weapon: "tombak", hero: "petir", hat: "none", cape: "none", aggro: 0.6, hp: 250, speed: 5.5 },
+        { name: "Lvl 4: Elite Ikky", weapon: "pisau", hero: "petir", hat: "mahkota", cape: "black", aggro: 0.8, hp: 350, speed: 7 },
+        { name: "Lvl 5: Jenderal OmKii", weapon: "sabit", hero: "es", hat: "none", cape: "red", aggro: 1.1, hp: 450, speed: 8 },
+        { name: "BOSS: Mak Sari", weapon: "sabit", hero: "api", hat: "mahkota", cape: "red", aggro: 1.6, hp: 600, speed: 9, isBoss: true }
+    ];
+
+    let p1Equip = { hat: 'none', cape: 'none', weapon: 'pedang', hero: 'api' };
+    let p2Equip = { hat: 'none', cape: 'none', weapon: 'pedang', hero: 'api' };
+
+    class Blood {
+        constructor({x, y, vx, vy, color='#b30000'}) {
+            this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+            this.alpha = 1; this.radius = Math.random() * 4 + 2; this.color = color;
+        }
+        draw() {
+            c.save(); c.globalAlpha = Math.max(0, this.alpha);
+            c.beginPath(); c.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+            c.fillStyle = this.color; c.fill(); c.restore();
+        }
+        update() { this.draw(); this.x += this.vx; this.y += this.vy; this.vy += 0.6; this.alpha -= 0.02; }
+    }
+
+    class Projectile {
+        constructor({ position, velocity, color, owner, type = 'api', radius = 12, damage = 10 }) {
+            this.position = position; this.velocity = velocity; this.color = color; this.owner = owner; this.radius = radius; this.active = true;
+            this.history = []; this.type = type; this.damage = damage;
+        }
+        draw() {
+            if (this.type === 'api') {
+                for (let i = 0; i < this.history.length; i++) {
+                    let point = this.history[i]; let size = (i / this.history.length) * this.radius; let opacity = i / this.history.length;
+                    c.beginPath(); c.arc(point.x + (Math.random()*6-3), point.y + (Math.random()*6-3), size, 0, Math.PI * 2);
+                    c.fillStyle = `rgba(255, ${100 + i*15}, 0, ${opacity})`; c.fill();
+                }
+                c.beginPath(); c.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
+                c.fillStyle = '#fff'; c.shadowBlur = 20; c.shadowColor = this.color; c.fill(); c.shadowBlur = 0;
+            } 
+            else if (this.type === 'petir') {
+                c.beginPath(); c.moveTo(this.position.x - this.velocity.x, this.position.y); c.lineTo(this.position.x, this.position.y);
+                c.strokeStyle = '#fff'; c.lineWidth = 4; c.shadowBlur = 15; c.shadowColor = '#ffcc00'; c.stroke(); c.shadowBlur = 0;
+            }
+            else if (this.type === 'es') {
+                c.save(); c.translate(this.position.x, this.position.y); c.rotate(Math.random() * Math.PI);
+                c.beginPath(); c.rect(-this.radius, -this.radius, this.radius*2, this.radius*2);
+                c.fillStyle = '#ccffff'; c.shadowBlur = 15; c.shadowColor = '#00e5ff'; c.fill(); c.restore(); c.shadowBlur = 0;
+            }
+            else if (this.type === 'es_ult') {
+                c.save(); c.translate(this.position.x, this.position.y); c.rotate(this.position.x * 0.05);
+                c.beginPath(); c.moveTo(0, -this.radius); c.lineTo(this.radius, 0); c.lineTo(0, this.radius); c.lineTo(-this.radius, 0); c.closePath();
+                c.fillStyle = '#e6ffff'; c.shadowBlur = 40; c.shadowColor = '#00e5ff'; c.fill();
+                c.strokeStyle = '#00e5ff'; c.lineWidth = 5; c.stroke(); c.restore(); c.shadowBlur = 0;
+            }
+        }
+        update() {
+            if(this.type === 'api') { this.history.push({x: this.position.x, y: this.position.y}); if (this.history.length > 8) this.history.shift(); }
+            this.draw(); this.position.x += this.velocity.x; this.position.y += this.velocity.y;
+            if (this.position.x < -200 || this.position.x > canvas.width + 200 || this.position.y > canvas.height + 200) this.active = false;
+        }
+    }
+
+    class LetoyFighter {
+        constructor({ position, velocity, color, weaponColor, facing, cdShootId, cdHealId, cdUltId, cdDashId, hpPrefix, equipment, maxHp = 300 }) {
+            this.position = position; this.velocity = velocity;
+            this.color = color; this.weaponColor = weaponColor; 
+            this.cdShootId = cdShootId; this.cdHealId = cdHealId; this.cdUltId = cdUltId; this.cdDashId = cdDashId; this.hpPrefix = hpPrefix;
+            this.equipment = equipment; 
+            
+            if (this.equipment.hero === 'api') this.effectColor = '#ff6666';
+            else if (this.equipment.hero === 'petir') this.effectColor = '#ffcc00';
+            else if (this.equipment.hero === 'es') this.effectColor = '#00e5ff';
+            else this.effectColor = weaponColor;
+
+            this.width = 60; this.height = 150; this.facing = facing; this.maxHealth = maxHp; this.health = maxHp; 
+            
+            this.isAttacking = false; this.attackFrame = 0; this.attackCooldownTimer = 0; this.attackType = 'ground'; 
+            this.isShooting = false; this.shootFrame = 0; this.shootCooldownMax = 300; this.shootCooldownTimer = 0; 
+            this.isHealing = false; this.healTimer = 0; this.healCooldownMax = 600; this.healCooldownTimer = 0;
+            this.isUltimating = false; this.ultPhase = 'idle'; this.ultFrame = 0; this.ultTargetX = 0; this.ultCooldownMax = 900; this.ultCooldownTimer = 0;
+            
+            // --- FITUR DASH ---
+            this.isDashing = false; this.dashFrame = 0; this.dashCooldownMax = 120; // 2 Detik CD
+            this.dashCooldownTimer = 0;
+
+            this.isEmoting = false; this.jumps = 0; this.doubleJumpCooldown = 0; 
+            this.time = Math.random() * 100; this.isHit = false; this.hitTimer = 0; this.isDead = false; 
+            this.swordHitbox = { x: 0, y: 0, radius: 50, active: false };
+        }
+
+        draw() {
+            c.save();
+            // Efek blur/bayangan saat DASH
+            if (this.isDashing) {
+                c.globalAlpha = 0.5;
+                c.translate(this.position.x - (this.velocity.x * 2) + this.width / 2, this.position.y + this.height / 2);
+                c.scale(this.facing, 1);
+                c.fillStyle = this.color; c.fillRect(-20, -75, 40, 150); // Simple blur trail
+                c.restore(); c.save();
+            }
+
+            c.translate(this.position.x + this.width / 2, this.position.y + this.height / 2);
+            c.scale(this.facing, 1);
+
+            this.time += 0.2;
+            let isMoving = Math.abs(this.velocity.x) > 0.5;
+            let bodyLean = isMoving ? -this.velocity.x * this.facing * 0.05 : 0; 
+            let fallFlail = this.velocity.y * 0.03; 
+            let wobble = this.isHit ? Math.sin(this.time * 5) * 0.5 : 0;
+            let squat = 0; 
+
+            let baseArmAngle = 0; let baseSwordAngle = -Math.PI / 4;
+            if (this.equipment.weapon === 'kapak') { baseArmAngle = -Math.PI / 6; baseSwordAngle = -Math.PI * 0.65; if (!this.isAttacking && !this.isShooting && !this.isEmoting && !this.isUltimating) bodyLean += 0.15; } 
+            else if (this.equipment.weapon === 'tombak') { baseArmAngle = Math.PI / 8; baseSwordAngle = Math.PI / 6; if (!this.isAttacking && !this.isShooting && !this.isEmoting && !this.isUltimating) bodyLean -= 0.05; }
+            else if (this.equipment.weapon === 'pisau') { baseArmAngle = Math.PI / 4; baseSwordAngle = Math.PI / 2; if (!this.isAttacking && !this.isShooting && !this.isEmoting && !this.isUltimating) bodyLean += 0.1; } // Siaga nunduk
+            else if (this.equipment.weapon === 'sabit') { baseArmAngle = Math.PI / 2; baseSwordAngle = Math.PI; } // Seret sabit
+
+            let armAngle = baseArmAngle; let swordAngle = baseSwordAngle;
+
+            if (this.isDead) { c.rotate(Math.PI / 2); c.translate(20, 20); bodyLean = 0; wobble = 0; fallFlail = 0; swordAngle = Math.PI / 2; armAngle = Math.PI / 4; } 
+            else if (this.isDashing) { bodyLean = 0.8; armAngle = -Math.PI/2; swordAngle = Math.PI; c.rotate(bodyLean); } // Pose lari ninja
+            else if (this.isUltimating) {
+                if (this.ultPhase === 'charge') {
+                    squat = 15; bodyLean = 0.3; armAngle = Math.PI * 0.7; swordAngle = Math.PI * 0.8; 
+                    let chargePower = this.ultFrame / 90; 
+                    if (this.equipment.hero === 'petir') { c.save(); c.scale(1, 0.3); c.beginPath(); c.arc(0, 150, 80 * chargePower, 0, Math.PI*2); c.strokeStyle = '#ffcc00'; c.lineWidth = 5; c.stroke(); c.restore(); globalShake = 2; } 
+                    else {
+                        let ballRadius = (Math.sin(this.time * 10) * 5 + 20) * chargePower;
+                        c.beginPath(); c.arc(-25, 10, ballRadius, 0, Math.PI * 2); c.fillStyle = '#fff'; c.shadowBlur = 40; c.shadowColor = this.effectColor; c.fill(); c.shadowBlur = 0;
+                        if (Math.random() > 0.5) { c.beginPath(); c.moveTo(-25, 10); c.lineTo(-25 + (Math.random()-0.5)*50, 10 + (Math.random()-0.5)*50); c.strokeStyle = this.effectColor; c.lineWidth = 2; c.stroke(); }
+                        globalShake = 3; 
+                    }
+                } else if (this.ultPhase === 'fire') {
+                    squat = 25; bodyLean = 0.6; armAngle = -Math.PI / 2; swordAngle = -Math.PI / 2; this.velocity.x = -this.facing * 3; 
+                    if (this.equipment.hero === 'api') {
+                        c.save(); let beamLength = 1200; let beamWidth = 60 + Math.sin(this.time * 20) * 10; 
+                        c.shadowBlur = 50; c.shadowColor = this.effectColor; c.fillStyle = this.effectColor; c.fillRect(20, -beamWidth/2, beamLength, beamWidth);
+                        c.shadowBlur = 0; c.fillStyle = '#ffffff'; c.fillRect(20, -beamWidth/4, beamLength, beamWidth/2);
+                        c.beginPath(); c.ellipse(20, 0, 15, beamWidth, 0, 0, Math.PI*2); c.fillStyle = '#fff'; c.shadowBlur = 20; c.shadowColor = this.effectColor; c.fill();
+                        c.restore(); globalShake = 15; 
+                    } 
+                    else if (this.equipment.hero === 'petir') {
+                        c.save(); c.setTransform(1, 0, 0, 1, 0, 0); let boltWidth = 80 + Math.random() * 20;
+                        c.fillStyle = 'rgba(255, 204, 0, 0.7)'; c.shadowBlur = 30; c.shadowColor = '#ffcc00'; c.fillRect(this.ultTargetX - boltWidth/2, 0, boltWidth, canvas.height);
+                        c.fillStyle = '#ffffff'; c.shadowBlur = 0; c.fillRect(this.ultTargetX - boltWidth/4, 0, boltWidth/2, canvas.height); c.restore(); globalShake = 20;
+                    }
+                    else if (this.equipment.hero === 'es') { bodyLean = 0.8; this.velocity.x = -this.facing * 10; globalShake = 10; }
+                }
+                c.translate(0, squat); c.rotate(bodyLean + wobble);
+            }
+            else if (this.isEmoting) { bodyLean = Math.sin(this.time * 1.5) * 0.2; armAngle = Math.sin(this.time * 2) * Math.PI / 1.5; swordAngle = Math.sin(this.time * 2) * Math.PI; squat = Math.abs(Math.sin(this.time * 1.5)) * 25; c.translate(0, squat); c.rotate(bodyLean); }
+            else if (this.isAttacking) {
+                if (this.equipment.weapon === 'kapak') {
+                    this.attackFrame += 0.018; bodyLean += Math.sin(this.attackFrame * Math.PI) * 1.5; 
+                    if (this.attackFrame < 0.4) { let p = this.attackFrame / 0.4; armAngle = baseArmAngle - (p * Math.PI); swordAngle = baseSwordAngle - (p * Math.PI * 0.8);
+                    } else if (this.attackFrame < 0.6) { let p = (this.attackFrame - 0.4) / 0.2; armAngle = baseArmAngle - Math.PI + (p * Math.PI * 2); swordAngle = baseSwordAngle - Math.PI*0.8 + (p * Math.PI * 2); this.swordHitbox.active = true;
+                    } else if (this.attackFrame < 1) { let p = (this.attackFrame - 0.6) / 0.4; armAngle = (baseArmAngle + Math.PI) * (1 - p) + baseArmAngle * p; swordAngle = (baseSwordAngle + Math.PI * 1.2) * (1 - p) + baseSwordAngle * p; this.swordHitbox.active = false;
+                    } else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 25; }
+                } 
+                else if (this.equipment.weapon === 'tombak') {
+                    this.attackFrame += 0.035; 
+                    if (this.attackFrame < 0.2) { let p = this.attackFrame / 0.2; armAngle = baseArmAngle + (p * Math.PI / 4); swordAngle = baseSwordAngle - (p * Math.PI / 4);
+                    } else if (this.attackFrame < 0.4) { let p = (this.attackFrame - 0.2) / 0.2; armAngle = -Math.PI / 2; swordAngle = Math.PI / 1.5; c.translate(50 * Math.sin(p * Math.PI), 0); bodyLean += 0.5; this.swordHitbox.active = true;
+                    } else if (this.attackFrame < 1) { let p = (this.attackFrame - 0.4) / 0.6; armAngle = (-Math.PI / 2) * (1 - p) + baseArmAngle * p; swordAngle = (Math.PI / 1.5) * (1 - p) + baseSwordAngle * p; this.swordHitbox.active = false;
+                    } else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 15; }
+                }
+                else if (this.equipment.weapon === 'pisau') {
+                    // --- ANIMASI PISAU GANDA (CEPAT) ---
+                    this.attackFrame += 0.1; // Sangat cepat
+                    bodyLean += 0.2;
+                    if (this.attackFrame < 0.5) { armAngle = -Math.PI / 2; swordAngle = Math.PI / 2; this.swordHitbox.active = true; } // Tusuk depan
+                    else if (this.attackFrame < 1) { armAngle = 0; swordAngle = -Math.PI / 2; this.swordHitbox.active = false; }
+                    else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 3; } // CD Hampir 0
+                }
+                else if (this.equipment.weapon === 'sabit') {
+                    // --- ANIMASI SABIT (AYUNAN LEBAR) ---
+                    this.attackFrame += 0.02;
+                    bodyLean += Math.sin(this.attackFrame * Math.PI) * 0.5;
+                    if (this.attackFrame < 0.3) { let p = this.attackFrame/0.3; armAngle = Math.PI/2 - (p*Math.PI); swordAngle = Math.PI - (p*Math.PI/2); }
+                    else if (this.attackFrame < 0.6) { let p = (this.attackFrame-0.3)/0.3; armAngle = -Math.PI/2 + (p*Math.PI*1.5); swordAngle = Math.PI/2 + (p*Math.PI); this.swordHitbox.active = true; }
+                    else if (this.attackFrame < 1) { this.swordHitbox.active = false; armAngle = Math.PI; swordAngle = Math.PI * 1.5; }
+                    else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 20; }
+                }
+                else { 
+                    this.attackFrame += 0.025; 
+                    if (this.attackType === 'air') {
+                        bodyLean += Math.sin(this.attackFrame * Math.PI) * 1.5; 
+                        if (this.attackFrame < 0.25) { let p = this.attackFrame / 0.25; armAngle = -Math.PI * p; swordAngle = -Math.PI/4 - (Math.PI/2 * p); 
+                        } else if (this.attackFrame < 0.5) { let p = (this.attackFrame - 0.25) / 0.25; armAngle = -Math.PI + (Math.PI * 1.8 * p); swordAngle = -Math.PI*0.75 + (Math.PI * 1.8 * p); this.swordHitbox.active = true; if(this.velocity.y < 15) this.velocity.y += 1.5; 
+                        } else if (this.attackFrame < 1) { let p = (this.attackFrame - 0.5) / 0.5; armAngle = (Math.PI*0.8) * (1 - p); swordAngle = (Math.PI*1.05) * (1 - p) + (-Math.PI/4) * p; this.swordHitbox.active = false; 
+                        } else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 15; }
+                    } else {
+                        bodyLean += Math.sin(this.attackFrame * Math.PI) * 0.8;
+                        if (this.attackFrame < 0.3) { let p = this.attackFrame / 0.3; swordAngle = -Math.PI / 4 - (p * Math.PI * 0.6); armAngle = p * (-Math.PI / 3);
+                        } else if (this.attackFrame < 0.5) { let p = (this.attackFrame - 0.3) / 0.2; swordAngle = -Math.PI / 4 - (Math.PI * 0.6) + (p * Math.PI * 2.2); armAngle = -Math.PI / 3 + (p * Math.PI * 1.5); this.swordHitbox.active = true; 
+                        } else if (this.attackFrame < 1) { let p = (this.attackFrame - 0.5) / 0.5; swordAngle = (-Math.PI / 4 + Math.PI * 1.6) * (1 - p) + (-Math.PI / 4) * p; armAngle = (-Math.PI / 3 + Math.PI * 1.5) * (1 - p) + 0 * p; this.swordHitbox.active = false; 
+                        } else { this.isAttacking = false; this.attackFrame = 0; this.swordHitbox.active = false; this.attackCooldownTimer = 15; }
+                    }
+                }
+                c.rotate(bodyLean + wobble);
+            }
+            else if (this.isShooting) { armAngle = -Math.PI / 2; swordAngle = Math.PI / 2.5; bodyLean = -0.4; c.rotate(bodyLean + wobble); this.shootFrame--; if (this.shootFrame <= 0) this.isShooting = false; } 
+            else { c.rotate(bodyLean + wobble); }
+
+            if (this.isHealing) { c.shadowBlur = 40; c.shadowColor = '#00ff00'; this.healTimer--; if (this.healTimer <= 0) this.isHealing = false; }
+
+            c.lineWidth = 10; c.lineCap = 'round'; c.lineJoin = 'round';
+
+            let walkAnim = (isMoving && this.velocity.y === 0 && !this.isDead && !this.isEmoting && !this.isUltimating && !this.isDashing) ? Math.sin(this.time) * 30 : 0;
+            let legBackX = -20 + walkAnim; let legFrontX = 20 - walkAnim;  
+
+            c.strokeStyle = this.color; c.globalAlpha = 0.4; 
+            c.beginPath(); c.moveTo(0, 15); c.lineTo(legBackX - fallFlail*20, 45 - fallFlail*10); c.lineTo(legBackX*1.1 - fallFlail*30, 75 - fallFlail*20 - squat); c.stroke();
+            c.beginPath(); c.moveTo(0, -25); c.lineTo(-25 - walkAnim*0.5 - fallFlail*20, 5 - fallFlail*20); c.stroke(); 
+
+            if (this.equipment.cape !== 'none' && !this.isDead) {
+                c.save(); c.globalAlpha = 1.0;
+                let capeWaveX = 0; let capeWaveY = 0; let capeWindX = 15; let capeWindY = 10; 
+                if (isMoving && this.velocity.y === 0) { capeWaveX = Math.sin(this.time * 15) * 15; capeWaveY = Math.cos(this.time * 10) * 5; capeWindX = 45; capeWindY = -5; }
+                if (this.isDashing) { capeWindX = 80; capeWindY = -20; } // Jubah terbang lurus ke belakang saat dash
+                let vertWind = -this.velocity.y * 2.5; 
+                c.beginPath(); c.moveTo(0, -30); c.quadraticCurveTo(-15 - capeWindX/2, -10 + vertWind/2, -20 - capeWindX + capeWaveX, 50 + capeWindY + vertWind + capeWaveY); c.lineTo(-5 - capeWindX + capeWaveX/2, 55 + capeWindY + vertWind + capeWaveY); c.lineTo(10, -20); c.closePath();
+                c.fillStyle = this.equipment.cape === 'red' ? '#ff1111' : '#222222'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 2; c.stroke(); c.restore();
+            }
+
+            c.globalAlpha = 1.0; c.strokeStyle = this.isHealing ? '#00ff44' : (this.isDashing ? '#ffffff' : this.color);
+            c.beginPath(); c.moveTo(0, -35); c.quadraticCurveTo(bodyLean * 50, 0, 0, 15); c.stroke(); 
+            c.beginPath(); c.fillStyle = this.isHealing ? '#00ff44' : (this.isDashing ? '#ffffff' : this.color); c.arc(0 + bodyLean*10, -50, 18, 0, Math.PI * 2); c.fill(); 
+            
+            if (this.equipment.hat !== 'none' && !this.isDead) {
+                c.save(); c.translate(bodyLean*10, -65); 
+                if (this.equipment.hat === 'mahkota') {
+                    c.fillStyle = '#ffcc00'; c.beginPath(); c.moveTo(-15, 0); c.lineTo(-20, -20); c.lineTo(-5, -10); c.lineTo(0, -25); c.lineTo(5, -10); c.lineTo(20, -20); c.lineTo(15, 0); c.closePath(); c.fill();
+                    c.strokeStyle = '#aa8800'; c.lineWidth = 2; c.stroke();
+                } else if (this.equipment.hat === 'koboi') {
+                    c.translate(0, 5); c.fillStyle = '#8b4513'; c.beginPath(); c.ellipse(2, 0, 25, 4, 0, 0, Math.PI*2); c.fill();
+                    c.beginPath(); c.moveTo(-12, 0); c.lineTo(-10, -18); c.lineTo(15, -15); c.lineTo(12, 0); c.closePath(); c.fill();
+                }
+                c.restore();
+            }
+
+            if (!this.isDead) { c.beginPath(); c.fillStyle = '#ffffff'; c.shadowBlur = 15; c.shadowColor = '#ffffff'; c.arc(10 + bodyLean*10, -54, 4.5, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0; }
+            c.beginPath(); c.moveTo(0, 15); c.lineTo(legFrontX - fallFlail*20, 45 - fallFlail*10); c.lineTo(legFrontX*1.1 - fallFlail*30, 75 - fallFlail*20 - squat); c.stroke(); 
+
+            // --- RENDER SENJATA TERMASUK PISAU DAN SABIT ---
+            c.save(); c.translate(0, -25); c.rotate(armAngle - fallFlail); 
+            c.beginPath(); c.moveTo(0, 0); c.lineTo(20, 20); c.stroke(); 
+            c.translate(20, 20); c.rotate(swordAngle / 2); c.beginPath(); c.moveTo(0, 0); c.lineTo(20, 10); c.stroke(); 
+            c.translate(20, 10); c.rotate(swordAngle);
+            
+            let hitboxYOffset = -60; 
+
+            if (this.ultPhase !== 'fire' || this.equipment.hero === 'petir') {
+                c.shadowBlur = 20; c.shadowColor = this.effectColor; c.fillStyle = '#fff'; c.strokeStyle = '#fff';
+                if (this.isDead) { c.strokeStyle = 'transparent'; c.fillStyle = 'transparent'; c.shadowBlur = 0; }
+
+                if (this.equipment.weapon === 'pedang' || !this.equipment.weapon) {
+                    c.strokeStyle = '#555'; c.lineWidth = 6; c.shadowBlur = 0; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -20); c.stroke(); c.strokeStyle='#fff'; c.shadowBlur=20;
+                    c.lineWidth = 8; c.beginPath(); c.moveTo(0, -20); c.lineTo(0, -100); c.stroke();
+                    this.swordHitbox.radius = 50; hitboxYOffset = -60;
+                }
+                else if (this.equipment.weapon === 'kapak') {
+                    c.lineWidth = 6; c.strokeStyle = '#8b4513'; c.shadowBlur = 0; c.beginPath(); c.moveTo(0, 20); c.lineTo(0, -80); c.stroke(); 
+                    c.shadowBlur = 20; c.shadowColor = this.effectColor; c.fillStyle = '#fff';
+                    c.beginPath(); c.moveTo(0, -60); c.quadraticCurveTo(30, -50, 30, -70); c.quadraticCurveTo(30, -90, 0, -80); c.closePath(); c.fill();
+                    this.swordHitbox.radius = 60; hitboxYOffset = -70; 
+                }
+                else if (this.equipment.weapon === 'tombak') {
+                    c.lineWidth = 5; c.strokeStyle = '#8b4513'; c.shadowBlur = 0; c.beginPath(); c.moveTo(0, 50); c.lineTo(0, -130); c.stroke(); 
+                    c.shadowBlur = 20; c.shadowColor = this.effectColor; c.fillStyle = '#fff';
+                    c.beginPath(); c.moveTo(-5, -130); c.lineTo(0, -155); c.lineTo(5, -130); c.closePath(); c.fill();
+                    this.swordHitbox.radius = 60; hitboxYOffset = -140; 
+                }
+                else if (this.equipment.weapon === 'pisau') {
+                    c.strokeStyle = '#555'; c.lineWidth = 4; c.shadowBlur = 0; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -10); c.stroke(); c.strokeStyle='#fff'; c.shadowBlur=20;
+                    c.lineWidth = 6; c.beginPath(); c.moveTo(0, -10); c.lineTo(0, -40); c.stroke(); // Pisau pendek
+                    this.swordHitbox.radius = 35; hitboxYOffset = -20; // Jangkauan super pendek
+                }
+                else if (this.equipment.weapon === 'sabit') {
+                    // Sabit Vandalas
+                    c.lineWidth = 5; c.strokeStyle = '#555'; c.shadowBlur = 0; c.beginPath(); c.moveTo(0, 40); c.lineTo(0, -120); c.stroke(); // Tiang sabit
+                    c.shadowBlur = 20; c.shadowColor = this.effectColor; c.strokeStyle = '#fff'; c.lineWidth = 8;
+                    c.beginPath(); c.moveTo(0, -110); c.quadraticCurveTo(-40, -110, -60, -60); c.stroke(); // Bilah melengkung ke kiri
+                    this.swordHitbox.radius = 70; hitboxYOffset = -80; // Hitbox melengkung/lebar
+                }
+            }
+            
+            if (this.swordHitbox.active) {
+                let globalMtx = c.getTransform();
+                this.swordHitbox.x = globalMtx.e; this.swordHitbox.y = globalMtx.f + hitboxYOffset; 
+            }
+            c.restore(); c.restore(); 
+        }
+
+        update() {
+            this.draw();
+            if (this.isHit) { this.hitTimer--; if (this.hitTimer <= 0) this.isHit = false; }
+            
+            if (this.isDashing) {
+                this.dashFrame++;
+                this.velocity.x = this.facing * 20; // Kecepatan Dash kilat
+                this.velocity.y = 0; // Tahan di udara
+                if (this.dashFrame > 10) { // Dash selesai dalam 1/6 detik
+                    this.isDashing = false; this.dashFrame = 0;
+                }
+            }
+
+            if (this.isUltimating) {
+                this.ultFrame++; this.velocity.x = 0; 
+                let enemy = (this === player1) ? player2 : player1;
+                
+                if (this.ultPhase === 'charge') {
+                    if (this.equipment.hero === 'petir') this.ultTargetX = enemy.position.x + enemy.width/2; 
+                    if (this.ultFrame > 90) { this.ultPhase = 'fire'; this.ultFrame = 0; }
+                }
+                else if (this.ultPhase === 'fire') {
+                    if (this.equipment.hero === 'es' && this.ultFrame === 1) {
+                        projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 50), y: this.position.y }, velocity: { x: this.facing * 10, y: 0 }, color: this.effectColor, owner: this, type: 'es_ult', radius: 60, damage: 80 }));
+                    }
+
+                    if (this.ultFrame % 5 === 0 && !enemy.isDead) {
+                        if (this.equipment.hero === 'api') {
+                            let inLine = (this.facing === 1 && enemy.position.x > this.position.x) || (this.facing === -1 && enemy.position.x < this.position.x);
+                            let laserTop = this.position.y + 20; let laserBottom = this.position.y + 100;
+                            let enemyTop = enemy.position.y; let enemyBottom = enemy.position.y + enemy.height;
+                            if (inLine && enemyBottom > laserTop && enemyTop < laserBottom) { enemy.takeHit(this.facing, 6); }
+                        }
+                        else if (this.equipment.hero === 'petir') {
+                            if (Math.abs((enemy.position.x + enemy.width/2) - this.ultTargetX) < 60) { enemy.takeHit(enemy.position.x > this.ultTargetX ? 1 : -1, 8); }
+                        }
+                    }
+                    if (this.ultFrame > 60) { this.isUltimating = false; this.ultPhase = 'idle'; }
+                }
+            }
+
+            if (this.attackCooldownTimer > 0) this.attackCooldownTimer--;
+            if (this.doubleJumpCooldown > 0) this.doubleJumpCooldown--; 
+            
+            // --- UI CD UPDATES ---
+            if (this.ultCooldownTimer > 0) { this.ultCooldownTimer--; document.getElementById(this.cdUltId).style.width = (1 - (this.ultCooldownTimer / this.ultCooldownMax)) * 100 + '%'; } else { document.getElementById(this.cdUltId).style.width = '100%'; }
+            if (this.shootCooldownTimer > 0) { this.shootCooldownTimer--; document.getElementById(this.cdShootId).style.width = (1 - (this.shootCooldownTimer / this.shootCooldownMax)) * 100 + '%'; } else { document.getElementById(this.cdShootId).style.width = '100%'; }
+            if (this.healCooldownTimer > 0) { this.healCooldownTimer--; document.getElementById(this.cdHealId).style.width = (1 - (this.healCooldownTimer / this.healCooldownMax)) * 100 + '%'; } else { document.getElementById(this.cdHealId).style.width = '100%'; }
+            if (this.dashCooldownTimer > 0) { this.dashCooldownTimer--; document.getElementById(this.cdDashId).style.width = (1 - (this.dashCooldownTimer / this.dashCooldownMax)) * 100 + '%'; } else { document.getElementById(this.cdDashId).style.width = '100%'; }
+
+            if (!this.isDashing) {
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+            } else {
+                this.position.x += this.velocity.x; // Dash abaikan gravitasi
+            }
+
+            let onGround = false;
+            if (this.position.x + this.width > platform.x && this.position.x < platform.x + platform.w && this.position.y + this.height <= platform.y && this.position.y + this.height + this.velocity.y >= platform.y) {
+                if(!this.isDashing) this.velocity.y = 0; this.position.y = platform.y - this.height; onGround = true;
+            }
+            if (this.position.y + this.height + this.velocity.y >= canvas.height - 30) {
+                if(!this.isDashing) this.velocity.y = 0; this.position.y = canvas.height - 30 - this.height; onGround = true;
+            } else if (!onGround && !this.isDashing) { this.velocity.y += gravity; }
+
+            if (onGround) this.jumps = 0;
+
+            if (!this.isDashing) {
+                this.velocity.x *= 0.85; 
+                if (Math.abs(this.velocity.x) < 0.5) this.velocity.x = 0;
+            }
+            if (this.position.x <= 0) { this.position.x = 0; if(!this.isDashing) this.velocity.x = 0; }
+            if (this.position.x + this.width >= canvas.width) { this.position.x = canvas.width - this.width; if(!this.isDashing) this.velocity.x = 0; }
+        }
+
+        attack() {
+            if (!this.isAttacking && !this.isShooting && !this.isUltimating && !this.isEmoting && !this.isHit && !this.isDead && !this.isDashing && this.attackCooldownTimer <= 0) {
+                this.isAttacking = true; this.attackFrame = 0; this.attackType = Math.abs(this.velocity.y) > 0.5 ? 'air' : 'ground'; 
+            }
+        }
+        shoot() {
+            if (this.shootCooldownTimer <= 0 && !this.isAttacking && !this.isUltimating && !this.isEmoting && !this.isHit && !this.isDead && !this.isDashing) {
+                this.isShooting = true; this.shootFrame = 15; 
+                if (this.equipment.hero === 'api') { projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 30), y: this.position.y + 40 }, velocity: { x: this.facing * 18, y: 0 }, color: this.effectColor, owner: this, type: 'api', damage: 15 })); } 
+                else if (this.equipment.hero === 'petir') { projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 30), y: this.position.y + 40 }, velocity: { x: this.facing * 35, y: 0 }, color: this.effectColor, owner: this, type: 'petir', damage: 10, radius: 4 })); } 
+                else if (this.equipment.hero === 'es') {
+                    projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 30), y: this.position.y + 40 }, velocity: { x: this.facing * 14, y: -2 }, color: this.effectColor, owner: this, type: 'es', damage: 8 }));
+                    projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 30), y: this.position.y + 40 }, velocity: { x: this.facing * 15, y: 0 }, color: this.effectColor, owner: this, type: 'es', damage: 8 }));
+                    projectiles.push(new Projectile({ position: { x: this.position.x + this.width / 2 + (this.facing * 30), y: this.position.y + 40 }, velocity: { x: this.facing * 14, y: 2 }, color: this.effectColor, owner: this, type: 'es', damage: 8 }));
+                }
+                this.shootCooldownTimer = this.shootCooldownMax; this.velocity.x = -this.facing * 8; 
+            }
+        }
+        heal() {
+            if (this.healCooldownTimer <= 0 && !this.isDead && !this.isUltimating && !this.isDashing) {
+                this.health += 100; if (this.health > this.maxHealth) this.health = this.maxHealth; 
+                this.healCooldownTimer = this.healCooldownMax; this.isHealing = true; this.healTimer = 45; updateHealthUI(this);
+            }
+        }
+        ultimate() {
+            if (this.ultCooldownTimer <= 0 && !this.isDead && !this.isHit && !this.isAttacking && !this.isDashing && Math.abs(this.velocity.y) < 1) {
+                this.isUltimating = true; this.ultPhase = 'charge'; this.ultFrame = 0; this.ultCooldownTimer = this.ultCooldownMax; 
+            }
+        }
+        dash() {
+            if (this.dashCooldownTimer <= 0 && !this.isDead && !this.isHit && !this.isUltimating && !this.isAttacking && !this.isShooting) {
+                this.isDashing = true; this.dashFrame = 0; this.dashCooldownTimer = this.dashCooldownMax;
+            }
+        }
+        healFromLifesteal(amount) {
+            if (this.isDead) return;
+            this.health += amount; if (this.health > this.maxHealth) this.health = this.maxHealth;
+            // Spawn darah hijau kecil untuk menandakan lifesteal
+            bloodParticles.push(new Blood({ x: this.position.x + this.width/2, y: this.position.y - 20, vx: 0, vy: -5, color: '#00ff44' }));
+            updateHealthUI(this);
+        }
+        takeHit(direction, damage = 15) {
+            if (this.isDead) return; 
+            
+            // JIKA SEDANG DASH, ADA KEMUNGKINAN 50% EVADE (MENGHINDAR) / I-FRAME
+            if (this.isDashing && Math.random() < 0.5) {
+                // Tampilkan Teks DODGE!
+                return; 
+            }
+
+            this.health -= damage;
+            if (this.ultPhase !== 'fire') {
+                this.isHit = true; this.hitTimer = 20; this.isAttacking = false; this.isShooting = false; this.isEmoting = false;
+                this.isUltimating = false; this.swordHitbox.active = false; this.isDashing = false;
+            }
+            for (let i = 0; i < 25; i++) {
+                bloodParticles.push(new Blood({ x: this.position.x + this.width/2, y: this.position.y + this.height/2 - 20, vx: (Math.random() - 0.5) * 15 + (direction * 5), vy: (Math.random() - 1) * 12 }));
+            }
+            if (this.health <= 0) {
+                this.health = 0; this.isDead = true; this.velocity.y = -8; this.velocity.x = direction * 8; updateHealthUI(this); return;
+            }
+            updateHealthUI(this);
+            if (this.ultPhase !== 'fire') { this.velocity.y = -10; this.velocity.x = direction * 12; }
+        }
+    }
+
+    let player1, player2;
+    const keys = { w: { pressed: false }, a: { pressed: false }, d: { pressed: false }, ArrowUp: { pressed: false }, ArrowLeft: { pressed: false }, ArrowRight: { pressed: false } };
+
+    function openModeSelect() { document.getElementById('main-menu').style.display = 'none'; document.getElementById('mode-menu').style.display = 'flex'; }
+    function backToMain() { document.getElementById('mode-menu').style.display = 'none'; document.getElementById('main-menu').style.display = 'flex'; }
+    function openCustomVersus() { gameMode = 'versus'; document.getElementById('mode-menu').style.display = 'none'; document.getElementById('custom-menu').style.display = 'flex'; document.getElementById('p2-overlay').style.display = 'none'; }
+    function openLevelSelect() { gameMode = 'story'; document.getElementById('mode-menu').style.display = 'none'; document.getElementById('level-menu').style.display = 'flex'; renderLevels(); }
+    
+    function renderLevels() {
+        const container = document.getElementById('level-container'); container.innerHTML = '';
+        storyLevels.forEach((lvl, index) => {
+            let lvlNum = index + 1; let isLocked = lvlNum > maxUnlockedLevel;
+            let btn = document.createElement('button'); btn.className = 'level-btn ' + (isLocked ? 'locked' : '');
+            let shortName = lvl.name.split(':')[0]; btn.innerHTML = isLocked ? `🔒 ${shortName}` : `⭐ ${shortName}`;
+            if (!isLocked) { btn.onclick = () => { currentLevel = lvlNum; document.getElementById('level-menu').style.display = 'none'; document.getElementById('custom-menu').style.display = 'flex'; document.getElementById('p2-overlay').style.display = 'flex'; }; }
+            container.appendChild(btn);
+        });
+    }
+
+    function backToModeSelect() { document.getElementById('level-menu').style.display = 'none'; document.getElementById('mode-menu').style.display = 'flex'; }
+    function backFromCustom() { document.getElementById('custom-menu').style.display = 'none'; if (gameMode === 'story') { document.getElementById('level-menu').style.display = 'flex'; } else { document.getElementById('mode-menu').style.display = 'flex'; } }
+    function exitGame() { document.getElementById('main-menu').style.display = 'none'; document.getElementById('goodbye-screen').style.display = 'flex'; }
+    
+    function startGame() {
+        p1Equip.hero = document.getElementById('p1-hero').value; p1Equip.weapon = document.getElementById('p1-weapon').value; p1Equip.hat = document.getElementById('p1-hat').value; p1Equip.cape = document.getElementById('p1-cape').value;
+        if (gameMode === 'versus') {
+            p2Equip.hero = document.getElementById('p2-hero').value; p2Equip.weapon = document.getElementById('p2-weapon').value; p2Equip.hat = document.getElementById('p2-hat').value; p2Equip.cape = document.getElementById('p2-cape').value;
+            document.getElementById('level-info').innerText = "VS PLAYER 2"; document.getElementById('p2-controls').style.display = "inline";
+        } else { setupStoryLevel(); document.getElementById('p2-controls').style.display = "none"; }
+
+        document.getElementById('custom-menu').style.display = 'none'; document.getElementById('ui-layer').style.display = 'flex'; document.getElementById('controls-info').style.display = 'block';
+        player1 = new LetoyFighter({ position: { x: 150, y: 100 }, velocity: { x: 0, y: 0 }, color: '#ff3333', weaponColor: '#ff6666', facing: 1, cdShootId: 'player1-shoot-cd', cdHealId: 'player1-heal-cd', cdUltId: 'player1-ult-cd', cdDashId: 'player1-dash-cd', hpPrefix: 'p1', equipment: p1Equip, maxHp: 300 });
+        if(gameMode === 'versus'){ player2 = new LetoyFighter({ position: { x: 800, y: 100 }, velocity: { x: 0, y: 0 }, color: '#ffffff', weaponColor: '#ccffff', facing: -1, cdShootId: 'player2-shoot-cd', cdHealId: 'player2-heal-cd', cdUltId: 'player2-ult-cd', cdDashId: 'player2-dash-cd', hpPrefix: 'p2', equipment: p2Equip, maxHp: 300 }); }
+        updateHealthUI(player1); updateHealthUI(player2); gameActive = true; isGameOver = false; timer = 99; decreaseTimer(); animate();
+    }
+
+    function setupStoryLevel() {
+        let levelData = storyLevels[currentLevel - 1]; p2Equip.hero = levelData.hero; p2Equip.weapon = levelData.weapon; p2Equip.hat = levelData.hat; p2Equip.cape = levelData.cape;
+        document.getElementById('level-info').innerText = levelData.name;
+        player2 = new LetoyFighter({ position: { x: 800, y: 100 }, velocity: { x: 0, y: 0 }, color: levelData.isBoss ? '#000000' : '#ffffff', weaponColor: levelData.isBoss ? '#ff0000' : '#ccffff', facing: -1, cdShootId: 'player2-shoot-cd', cdHealId: 'player2-heal-cd', cdUltId: 'player2-ult-cd', cdDashId: 'player2-dash-cd', hpPrefix: 'p2', equipment: p2Equip, maxHp: levelData.hp });
+    }
+
+    function nextLevel() {
+        currentLevel++; document.getElementById('result-screen').style.display = 'none'; document.getElementById('next-btn').style.display = 'none';
+        player1.health += 150; if(player1.health > 300) player1.health = 300;
+        player1.position = { x: 150, y: 100 }; player1.velocity = {x:0,y:0}; player1.isDead = false; player1.isUltimating = false; player1.isHit = false; player1.isAttacking = false;
+        updateHealthUI(player1); setupStoryLevel(); updateHealthUI(player2); isGameOver = false; timer = 99; decreaseTimer();
+    }
+
+    function updateHealthUI(player) {
+        let hp = player.health; let l3Max = Math.max(0, player.maxHealth - 200); let l2Max = Math.min(100, Math.max(0, player.maxHealth - 100)); let l1Max = Math.min(100, player.maxHealth);
+        let l3 = Math.max(0, hp - 200); let l2 = Math.max(0, Math.min(100, hp - 100)); let l1 = Math.max(0, Math.min(100, hp)); 
+        document.getElementById(player.hpPrefix + '-l3').style.width = (l3Max > 0 ? (l3/100)*100 : 0) + '%'; document.getElementById(player.hpPrefix + '-l2').style.width = (l2Max > 0 ? (l2/100)*100 : 0) + '%'; document.getElementById(player.hpPrefix + '-l1').style.width = (l1Max > 0 ? (l1/100)*100 : 0) + '%';
+    }
+
+    function determineWinner({ player1, player2 }) {
+        if (isGameOver) return; isGameOver = true;
+        setTimeout(() => {
+            document.getElementById('result-screen').style.display = 'flex'; let wt = document.getElementById('winner-text');
+            if (player1.health === player2.health) { wt.innerHTML = 'WAKTU HABIS - SERI!'; }
+            else if (player1.health > player2.health) { 
+                if(gameMode === 'story') {
+                    if (currentLevel === maxUnlockedLevel && currentLevel < storyLevels.length) { maxUnlockedLevel++; localStorage.setItem('letoyMaxLevel', maxUnlockedLevel); }
+                    if (currentLevel < storyLevels.length) { wt.innerHTML = 'LEVEL CLEARED!'; wt.style.color = '#00ff44'; document.getElementById('next-btn').style.display = 'block'; } else { wt.innerHTML = 'CHAMPION!'; wt.style.color = '#ffcc00'; document.getElementById('next-btn').style.display = 'none'; }
+                } else { wt.innerHTML = 'MERAH MENANG!'; wt.style.color = '#ff3333'; }
+            } else { 
+                if(gameMode === 'story') { wt.innerHTML = 'GAME OVER'; wt.style.color = '#ff1a1a'; document.getElementById('next-btn').style.display = 'none';}
+                else { wt.innerHTML = 'PUTIH MENANG!'; wt.style.color = '#ffffff'; }
+            }
+        }, 1500); 
+    }
+
+    function decreaseTimer() {
+        if (timer > 0 && !isGameOver && gameActive) { timerId = setTimeout(decreaseTimer, 1000); timer--; document.getElementById('timer').innerHTML = timer; }
+        if (timer === 0 && gameActive) determineWinner({ player1, player2 });
+    }
+
+    function getSpeedForWeapon(weapon) { if (weapon === 'kapak') return 4.5; if (weapon === 'pisau') return 10; if (weapon === 'tombak') return 9; if (weapon === 'sabit') return 6; return 7; }
+    function getJumpPower(weapon) { if (weapon === 'kapak' || weapon === 'sabit') return -13; if (weapon === 'tombak') return -18; return -16; }
+
+    function updateAI() {
+        if (!gameActive || gameMode !== 'story' || player1.isDead || player2.isDead || isGameOver) return;
+        let diff = storyLevels[currentLevel - 1]; let dist = player1.position.x - player2.position.x; let absDist = Math.abs(dist);
+        keys.ArrowLeft.pressed = false; keys.ArrowRight.pressed = false; player2.facing = dist > 0 ? 1 : -1;
+        
+        if (absDist > 180) { 
+            if (dist > 0) keys.ArrowRight.pressed = true; else keys.ArrowLeft.pressed = true;
+            if (Math.random() < 0.015 * diff.aggro) player2.shoot();
+            if (Math.random() < 0.005 * diff.aggro) player2.dash(); // AI Bisa Dash mengejar
+        } else { 
+            if (Math.random() < 0.04 * diff.aggro) player2.attack();
+            if (Math.random() < 0.02) { if (dist > 0) keys.ArrowLeft.pressed = true; else keys.ArrowRight.pressed = true; }
+            if (Math.random() < 0.01 * diff.aggro) player2.dash(); // AI Bisa Dash kabur
+        }
+        if (player2.health < player2.maxHealth * 0.4 && Math.random() < 0.01) player2.heal();
+        if (player2.ultCooldownTimer <= 0 && absDist < 600 && Math.random() < 0.01 * diff.aggro) player2.ultimate();
+    }
+
+    function animate() {
+        if (!gameActive) return; window.requestAnimationFrame(animate); c.clearRect(0, 0, canvas.width, canvas.height);
+        c.save(); if (globalShake > 0) { c.translate(Math.random() * globalShake - globalShake/2, Math.random() * globalShake - globalShake/2); globalShake--; }
+        c.fillStyle = 'rgba(255, 255, 255, 0.05)'; c.fillRect(100, 0, 50, canvas.height); c.fillRect(400, 0, 80, canvas.height); c.fillRect(800, 0, 40, canvas.height);
+        c.fillStyle = '#2c3e50'; c.fillRect(platform.x, platform.y, platform.w, platform.h); c.strokeStyle = '#7f8c8d'; c.lineWidth = 6; c.strokeRect(platform.x, platform.y, platform.w, platform.h);
+        c.fillStyle = '#1a252c'; c.fillRect(0, canvas.height - 30, canvas.width, 30); c.beginPath(); c.moveTo(0, canvas.height-30); c.lineTo(canvas.width, canvas.height-30); c.stroke();
+
+        if (gameMode === 'story') updateAI();
+
+        player1.update(); player2.update();
+
+        projectiles.forEach((proj) => {
+            proj.update(); let target = (proj.owner === player1) ? player2 : player1;
+            let dx = proj.position.x - (target.position.x + target.width/2); let dy = proj.position.y - (target.position.y + target.height/2);
+            if (Math.sqrt(dx * dx + dy * dy) < proj.radius + 30 && !target.isHit && !target.isDead) { 
+                target.takeHit(proj.velocity.x > 0 ? 1 : -1, proj.damage); proj.active = false; 
+            }
+        });
+        projectiles = projectiles.filter(p => p.active);
+        bloodParticles.forEach((blood, index) => { blood.update(); if (blood.alpha <= 0) bloodParticles.splice(index, 1); });
+
+        if (!player1.isDead && !player2.isDead && !player1.isUltimating && !player2.isUltimating) {
+            if (gameMode === 'versus') { if (player1.position.x < player2.position.x) { player1.facing = 1; player2.facing = -1; } else { player1.facing = -1; player2.facing = 1; } } 
+            else { player1.facing = player1.position.x < player2.position.x ? 1 : -1; }
+        }
+
+        let p1MaxSpeed = getSpeedForWeapon(player1.equipment.weapon); let p2MaxSpeed = getSpeedForWeapon(player2.equipment.weapon);
+        if(gameMode === 'story') p2MaxSpeed = storyLevels[currentLevel-1].speed;
+
+        if (!player1.isHit && !player1.isDead && !player1.isEmoting && !player1.isUltimating && !player1.isDashing) {
+            if (keys.a.pressed) player1.velocity.x -= 2; else if (keys.d.pressed) player1.velocity.x += 2;
+            if (player1.velocity.x > p1MaxSpeed) player1.velocity.x = p1MaxSpeed; if (player1.velocity.x < -p1MaxSpeed) player1.velocity.x = -p1MaxSpeed;
+        }
+        if (!player2.isHit && !player2.isDead && !player2.isEmoting && !player2.isUltimating && !player2.isDashing) {
+            if (keys.ArrowLeft.pressed) player2.velocity.x -= 2; else if (keys.ArrowRight.pressed) player2.velocity.x += 2;
+            if (player2.velocity.x > p2MaxSpeed) player2.velocity.x = p2MaxSpeed; if (player2.velocity.x < -p2MaxSpeed) player2.velocity.x = -p2MaxSpeed;
+        }
+
+        // KENDALI DAMAGE SENJATA MELEE (Termasuk Sabit Lifesteal)
+        if (player1.swordHitbox.active && !player2.isDead) {
+            let dx = player1.swordHitbox.x - (player2.position.x + player2.width/2); let dy = player1.swordHitbox.y - (player2.position.y + player2.height/2);
+            if(Math.sqrt(dx*dx + dy*dy) < player1.swordHitbox.radius + 30 && !player2.isHit) { 
+                let dmg = player1.equipment.weapon === 'kapak' ? 35 : (player1.equipment.weapon === 'pisau' ? 10 : 25);
+                player2.takeHit(player1.facing, dmg); player1.swordHitbox.active = false; 
+                if (player1.equipment.weapon === 'sabit') player1.healFromLifesteal(5);
+            }
+        }
+        if (player2.swordHitbox.active && !player1.isDead) {
+            let dx = player2.swordHitbox.x - (player1.position.x + player1.width/2); let dy = player2.swordHitbox.y - (player1.position.y + player1.height/2);
+            if(Math.sqrt(dx*dx + dy*dy) < player2.swordHitbox.radius + 30 && !player1.isHit) { 
+                let dmg = player2.equipment.weapon === 'kapak' ? 35 : (player2.equipment.weapon === 'pisau' ? 10 : 25);
+                player1.takeHit(player2.facing, dmg); player2.swordHitbox.active = false; 
+                if (player2.equipment.weapon === 'sabit') player2.healFromLifesteal(5);
+            }
+        }
+
+        if (player2.health <= 0 || player1.health <= 0) determineWinner({ player1, player2 });
+        c.restore(); 
+    }
+
+    function drawInitialMenuBackground() {
+        c.fillStyle = 'rgba(255, 255, 255, 0.05)'; c.fillRect(100, 0, 50, canvas.height); c.fillRect(400, 0, 80, canvas.height); c.fillRect(800, 0, 40, canvas.height);
+        c.fillStyle = '#2c3e50'; c.fillRect(platform.x, platform.y, platform.w, platform.h); c.strokeStyle = '#7f8c8d'; c.lineWidth = 6; c.strokeRect(platform.x, platform.y, platform.w, platform.h);
+        c.fillStyle = '#1a252c'; c.fillRect(0, canvas.height - 30, canvas.width, 30); c.beginPath(); c.moveTo(0, canvas.height-30); c.lineTo(canvas.width, canvas.height-30); c.stroke();
+    }
+    drawInitialMenuBackground();
+
+    window.addEventListener('keydown', (event) => {
+        if (!gameActive) return; 
+        switch (event.key) {
+            case 'd': keys.d.pressed = true; break; case 'a': keys.a.pressed = true; break;
+            case 'q': case 'Q': player1.isEmoting = true; break; case 'f': case 'F': player1.heal(); break; case 'r': case 'R': player1.ultimate(); break; 
+            case 'c': case 'C': player1.dash(); break; // TOMBOL DASH P1
+            case 'w': 
+                if (!player1.isHit && !player1.isDead && !player1.isEmoting && !player1.isUltimating && !player1.isDashing) {
+                    let jmp = getJumpPower(player1.equipment.weapon);
+                    if (player1.jumps === 0) { player1.velocity.y = jmp; player1.jumps = 1; } 
+                    else if (player1.jumps === 1 && player1.doubleJumpCooldown <= 0) { player1.velocity.y = jmp + 1; player1.jumps = 2; player1.doubleJumpCooldown = 180; }
+                } break;
+            case ' ': player1.attack(); break; case 'e': case 'E': player1.shoot(); break;
+            
+            case 'ArrowRight': if(gameMode === 'versus') keys.ArrowRight.pressed = true; break; 
+            case 'ArrowLeft': if(gameMode === 'versus') keys.ArrowLeft.pressed = true; break;
+            case '0': if(gameMode === 'versus') player2.isEmoting = true; break; case '1': if(gameMode === 'versus') player2.heal(); break; case '2': if(gameMode === 'versus') player2.ultimate(); break; 
+            case '3': if(gameMode === 'versus') player2.dash(); break; // TOMBOL DASH P2
+            case 'ArrowUp': 
+                if (gameMode === 'versus' && !player2.isHit && !player2.isDead && !player2.isEmoting && !player2.isUltimating && !player2.isDashing) {
+                    let jmp = getJumpPower(player2.equipment.weapon);
+                    if (player2.jumps === 0) { player2.velocity.y = jmp; player2.jumps = 1; } 
+                    else if (player2.jumps === 1 && player2.doubleJumpCooldown <= 0) { player2.velocity.y = jmp + 1; player2.jumps = 2; player2.doubleJumpCooldown = 180; }
+                } break;
+            case 'Enter': if(gameMode === 'versus') player2.attack(); break; case 'Shift': if(gameMode === 'versus') player2.shoot(); break;
+        }
+    });
+
+    window.addEventListener('keyup', (event) => {
+        if (!gameActive) return;
+        switch (event.key) {
+            case 'd': keys.d.pressed = false; break; case 'a': keys.a.pressed = false; break; case 'q': case 'Q': player1.isEmoting = false; break; 
+            case 'ArrowRight': if(gameMode === 'versus') keys.ArrowRight.pressed = false; break; 
+            case 'ArrowLeft': if(gameMode === 'versus') keys.ArrowLeft.pressed = false; break; 
+            case '0': if(gameMode === 'versus') player2.isEmoting = false; break;
+        }
+    });
+</script>
+</body>
+</html>
